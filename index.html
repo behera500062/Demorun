@@ -112,7 +112,7 @@ button{cursor:pointer}
 .availability-pill{font-size:10px;font-weight:700;padding:6px 9px;border-radius:20px}
 .availability-pill.available{background:#e8f7ee;color:#168348}
 .availability-pill.unavailable{background:#fff0f0;color:#c33}
-.menu-actions{display:flex;gap:7px}
+.menu-actions{display:flex;gap:7px;flex-wrap:wrap}
 .small-action{border:1px solid #e5e5e5;background:white;border-radius:6px;padding:7px 9px;font-size:11px;font-weight:700}
 .small-action.edit{color:#e85d24}
 .small-action.delete{color:#c33}
@@ -463,7 +463,11 @@ let menuSaving = false;
 /* SAFE HTML */
 function escapeHTML(value) {
 return String(value ?? "").replace(/[&<>"']/g, char => ({
-"&": "&", "<": "<", ">": ">", '"': """, "'": "'"
+"&": "&",
+"<": "<",
+">": ">",
+'"': """,
+"'": "'"
 })[char]);
 }
 
@@ -500,16 +504,22 @@ notice.textContent = "";
 /* TIME */
 function formatTime(value) {
 if (!value) return "Time unavailable";
+
 const date = new Date(value);
 if (Number.isNaN(date.getTime())) return "Time unavailable";
+
 return date.toLocaleString("en-IN", {
-day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit"
+day: "2-digit",
+month: "short",
+hour: "2-digit",
+minute: "2-digit"
 });
 }
 
-/* LOGIN */
+/* LOGIN - UPDATED */
 loginForm.addEventListener("submit", async event => {
 event.preventDefault();
+
 hideLoginNotice();
 loginButton.disabled = true;
 loginButton.textContent = "Logging in...";
@@ -518,10 +528,21 @@ const email = document.getElementById("email").value.trim();
 const password = document.getElementById("password").value;
 
 try {
-const { error } = await supabase.auth.signInWithPassword({ email, password });
+const { data, error } = await supabase.auth.signInWithPassword({
+email,
+password
+});
+
 if (error) throw error;
+
+if (!data.user) {
+throw new Error("Login successful, but user details were not returned.");
+}
+
+await startDashboard(data.user);
+
 } catch (error) {
-showLoginNotice(error.message);
+showLoginNotice(error.message || "Login failed. Please try again.");
 } finally {
 loginButton.disabled = false;
 loginButton.textContent = "Login to Dashboard";
@@ -530,8 +551,16 @@ loginButton.textContent = "Login to Dashboard";
 
 /* LOGOUT */
 logoutButton.addEventListener("click", async () => {
+logoutButton.disabled = true;
+
+try {
 const { error } = await supabase.auth.signOut();
-if (error) showNotice("Logout failed: " + error.message);
+if (error) throw error;
+} catch (error) {
+showNotice("Logout failed: " + error.message);
+} finally {
+logoutButton.disabled = false;
+}
 });
 
 /* ADMIN CHECK */
@@ -543,7 +572,12 @@ const { data, error } = await supabase
 .maybeSingle();
 
 if (error) throw error;
-if (!data) throw new Error("This account is not registered as an admin. Add its Auth User UUID to the admin_users table.");
+
+if (!data) {
+throw new Error(
+"This account is not registered as an admin. Add its Auth User UUID to the admin_users table."
+);
+}
 }
 
 /* ADMIN PROFILE */
@@ -575,44 +609,71 @@ if (!data) {
 fullNameEl.textContent = "Name not added";
 usernameEl.textContent = "Not added";
 phoneEl.textContent = "Not added";
-avatarEl.textContent = (user.email || "A").trim().charAt(0).toUpperCase() || "A";
+avatarEl.textContent =
+(user.email || "A").trim().charAt(0).toUpperCase() || "A";
+
 noticeEl.className = "notice error";
-noticeEl.textContent = "Admin profile record was not found. Check that this Auth user's UUID is saved in admin_profiles.";
+noticeEl.textContent =
+"Admin profile record was not found. Check that this Auth user's UUID is saved in admin_profiles.";
 return;
 }
 
 const fullName = String(data.full_name || "").trim() || "Name not added";
-usernameEl.textContent = String(data.username || "").trim() || "Not added";
-phoneEl.textContent = String(data.mobile || "").trim() || "Not added";
+
+usernameEl.textContent =
+String(data.username || "").trim() || "Not added";
+
+phoneEl.textContent =
+String(data.mobile || "").trim() || "Not added";
+
 fullNameEl.textContent = fullName;
-avatarEl.textContent = (fullName !== "Name not added" ? fullName : user.email || "A").trim().charAt(0).toUpperCase() || "A";
+
+avatarEl.textContent =
+(fullName !== "Name not added" ? fullName : user.email || "A")
+.trim()
+.charAt(0)
+.toUpperCase() || "A";
+
 } catch (error) {
 fullNameEl.textContent = "Unable to load";
 usernameEl.textContent = "Unable to load";
 phoneEl.textContent = "Unable to load";
-avatarEl.textContent = (user.email || "A").trim().charAt(0).toUpperCase() || "A";
+avatarEl.textContent =
+(user.email || "A").trim().charAt(0).toUpperCase() || "A";
+
 noticeEl.className = "notice error";
-noticeEl.textContent = "Unable to load admin profile: " + (error.message || "Unknown error");
+noticeEl.textContent =
+"Unable to load admin profile: " + (error.message || "Unknown error");
 }
 }
 
 /* RESTAURANT ONLINE / OFFLINE */
 function renderRestaurantStatus(isOnline) {
 restaurantIsOnline = Boolean(isOnline);
+
 restaurantStatusButton.classList.toggle("is-online", restaurantIsOnline);
 restaurantStatusButton.classList.toggle("is-offline", !restaurantIsOnline);
-restaurantStatusText.textContent = restaurantIsOnline ? "ONLINE" : "OFFLINE";
+
+restaurantStatusText.textContent =
+restaurantIsOnline ? "ONLINE" : "OFFLINE";
+
 restaurantStatusDescription.textContent = restaurantIsOnline
 ? "Restaurant is accepting orders"
 : "Restaurant is currently closed";
-restaurantStatusButton.setAttribute("aria-label", restaurantIsOnline
+
+restaurantStatusButton.setAttribute(
+"aria-label",
+restaurantIsOnline
 ? "Restaurant is online. Click to go offline."
-: "Restaurant is offline. Click to go online.");
+: "Restaurant is offline. Click to go online."
+);
 }
+
 function showRestaurantStatusError(message) {
 restaurantStatusError.style.display = "block";
 restaurantStatusError.textContent = message;
 }
+
 async function loadRestaurantStatus() {
 try {
 const { data, error } = await supabase
@@ -622,13 +683,17 @@ const { data, error } = await supabase
 .single();
 
 if (error) throw error;
+
 renderRestaurantStatus(data.is_online);
+
 restaurantStatusError.style.display = "none";
 restaurantStatusError.textContent = "";
 restaurantStatusButton.disabled = false;
+
 } catch (error) {
 restaurantStatusButton.disabled = true;
 restaurantStatusText.textContent = "UNAVAILABLE";
+
 showRestaurantStatusError("Status load failed: " + error.message);
 }
 }
@@ -637,9 +702,13 @@ restaurantStatusButton.addEventListener("click", async () => {
 if (restaurantStatusSaving) return;
 
 const newStatus = !restaurantIsOnline;
-const confirmed = confirm(newStatus
+
+const confirmed = confirm(
+newStatus
 ? "Are you sure you want to make the restaurant ONLINE?"
-: "Are you sure you want to make the restaurant OFFLINE?");
+: "Are you sure you want to make the restaurant OFFLINE?"
+);
+
 if (!confirmed) return;
 
 restaurantStatusSaving = true;
@@ -647,7 +716,11 @@ restaurantStatusButton.disabled = true;
 restaurantStatusText.textContent = "SAVING...";
 
 try {
-const { data: { user }, error: userError } = await supabase.auth.getUser();
+const {
+data: { user },
+error: userError
+} = await supabase.auth.getUser();
+
 if (userError) throw userError;
 if (!user) throw new Error("Please login again.");
 
@@ -663,12 +736,16 @@ updated_by: user.id
 .single();
 
 if (error) throw error;
+
 renderRestaurantStatus(data.is_online);
+
 restaurantStatusError.style.display = "none";
 restaurantStatusError.textContent = "";
+
 } catch (error) {
 showRestaurantStatusError("Update failed: " + error.message);
 await loadRestaurantStatus();
+
 } finally {
 restaurantStatusSaving = false;
 restaurantStatusButton.disabled = false;
@@ -677,13 +754,19 @@ restaurantStatusButton.disabled = false;
 
 function startRestaurantStatusSync() {
 stopRestaurantStatusSync();
+
 loadRestaurantStatus();
+
 restaurantStatusInterval = setInterval(() => {
-if (document.visibilityState === "visible" && !restaurantStatusSaving) {
+if (
+document.visibilityState === "visible" &&
+!restaurantStatusSaving
+) {
 loadRestaurantStatus();
 }
 }, 5000);
 }
+
 function stopRestaurantStatusSync() {
 if (restaurantStatusInterval) {
 clearInterval(restaurantStatusInterval);
@@ -693,27 +776,54 @@ restaurantStatusInterval = null;
 
 /* START DASHBOARD */
 async function startDashboard(user) {
-if (dashboardUserId === user.id && loginScreen.style.display === "none") return;
+if (!user || !user.id) return;
+
+if (
+dashboardUserId === user.id &&
+loginScreen.style.display === "none"
+) {
+return;
+}
 
 dashboardUserId = user.id;
 loginScreen.style.display = "none";
 logoutButton.style.display = "block";
 
+loginConnection.textContent = "Checking admin access...";
+
 try {
 await checkAdmin(user);
+
 await loadAdminProfile(user);
+
 startRestaurantStatusSync();
+
 clearNotice();
+
 await loadOrders();
+
 subscribeToOrders();
+
 await loadMenuData();
-loginConnection.textContent = "Connected to Supabase successfully.";
+
+loginConnection.textContent =
+"Connected to Supabase successfully.";
+
 } catch (error) {
 dashboardUserId = null;
+
 stopRestaurantStatusSync();
+
+if (realtimeChannel) {
+await supabase.removeChannel(realtimeChannel);
+realtimeChannel = null;
+}
+
 loginScreen.style.display = "flex";
 logoutButton.style.display = "none";
-showLoginNotice(error.message);
+
+showLoginNotice(error.message || "Unable to open dashboard.");
+
 loginConnection.textContent = "Admin access check failed.";
 }
 }
@@ -721,6 +831,7 @@ loginConnection.textContent = "Admin access check failed.";
 /* LOAD ORDERS */
 async function loadOrders() {
 if (isLoading) return;
+
 isLoading = true;
 
 try {
@@ -730,11 +841,15 @@ const { data, error } = await supabase
 .order("created_at", { ascending: false });
 
 if (error) throw error;
+
 orders = data || [];
 renderOrders();
+
 } catch (error) {
 showNotice("Unable to load orders: " + error.message);
-orderList.innerHTML = <div class="empty"&gt;&lt;h2&gt;Unable to Load Orders&lt;/h2&gt;&lt;p&gt;Please check your database connection and permissions.&lt;/p&gt;&lt;/div>;
+
+orderList.innerHTML = &lt;div class="empty"&gt; &lt;h2&gt;Unable to Load Orders&lt;/h2&gt; &lt;p&gt;Please check your database connection and permissions.&lt;/p&gt; &lt;/div>;
+
 } finally {
 isLoading = false;
 }
@@ -742,20 +857,34 @@ isLoading = false;
 
 /* ORDERS REALTIME */
 function subscribeToOrders() {
-if (realtimeChannel) supabase.removeChannel(realtimeChannel);
+if (realtimeChannel) {
+supabase.removeChannel(realtimeChannel);
+realtimeChannel = null;
+}
 
 realtimeChannel = supabase
 .channel("admin-orders-live")
-.on("postgres_changes", { event: "", schema: "public", table: "orders" }, async () => {
+.on(
+"postgres_changes",
+{ event: "", schema: "public", table: "orders" },
+async () => {
 await loadOrders();
-})
-.on("postgres_changes", { event: "", schema: "public", table: "order_items" }, async () => {
+}
+)
+.on(
+"postgres_changes",
+{ event: "", schema: "public", table: "order_items" },
+async () => {
 await loadOrders();
-})
+}
+)
 .subscribe(status => {
 if (status === "SUBSCRIBED") clearNotice();
+
 if (status === "CHANNEL_ERROR") {
-showNotice("Real-time connection interrupted. Reload the page if updates do not appear.");
+showNotice(
+"Real-time connection interrupted. Reload the page if updates do not appear."
+);
 }
 });
 }
@@ -770,7 +899,10 @@ const matchesTab = currentTab === "Past Orders"
 : order.status === currentTab;
 
 const items = order.order_items || [];
-const itemText = items.map(item => item.product_name || "").join(" ");
+
+const itemText = items
+.map(item => item.product_name || "")
+.join(" ");
 
 const matchesSearch =
 String(order.order_number || order.id).toLowerCase().includes(query) ||
@@ -783,43 +915,76 @@ return matchesTab && matchesSearch;
 orderList.innerHTML = "";
 
 if (filtered.length === 0) {
-orderList.innerHTML = <div class="empty"&gt;&lt;h2&gt;No Orders!&lt;/h2&gt;&lt;p&gt;New online orders will appear here.&lt;/p&gt;&lt;/div>;
+orderList.innerHTML = &lt;div class="empty"&gt; &lt;h2&gt;No Orders!&lt;/h2&gt; &lt;p&gt;New online orders will appear here.&lt;/p&gt; &lt;/div>;
 }
 
 filtered.forEach(order => {
 const statusClass = {
-"New": "new", "Preparing": "preparing", "Ready": "ready",
-"Picked Up": "picked", "Rejected": "rejected"
+"New": "new",
+"Preparing": "preparing",
+"Ready": "ready",
+"Picked Up": "picked",
+"Rejected": "rejected"
 }[order.status] || "";
 
 let buttons = "";
+
 if (order.status === "New") {
-buttons = &lt;button class="btn accept" data-id="${escapeHTML(order.id)}" data-status="Preparing">Accept Order</button>
-<button class="btn reject" data-id="${escapeHTML(order.id)}" data-status="Rejected"&gt;Reject&lt;/button>;
+buttons = &lt;button class="btn accept" data-id="${escapeHTML(order.id)}"
+data-status="Preparing">
+Accept Order
+</button>
+
+<button class="btn reject"
+data-id="${escapeHTML(order.id)}" data-status="Rejected"&gt; Reject &lt;/button>;
+
 } else if (order.status === "Preparing") {
-buttons = <button class="btn ready-btn" data-id="${escapeHTML(order.id)}" data-status="Ready">Mark Ready</button>; } else if (order.status === "Ready") { buttons =<button class="btn picked-btn" data-id="${escapeHTML(order.id)}" data-status="Picked Up"&gt;Mark Picked Up&lt;/button>;
+buttons = &lt;button class="btn ready-btn" data-id="${escapeHTML(order.id)}"
+data-status="Ready">
+Mark Ready
+</button>`;
+
+} else if (order.status === "Ready") {
+buttons = &lt;button class="btn picked-btn" data-id="${escapeHTML(order.id)}"
+data-status="Picked Up">
+Mark Picked Up
+</button>`;
+
 } else if (order.status === "Picked Up") {
-buttons = <span style="color:green;font-size:13px"&gt;✓ Order Completed&lt;/span>;
+buttons = &lt;span style="color:green;font-size:13px"&gt; ✓ Order Completed &lt;/span>;
+
 } else if (order.status === "Rejected") {
-buttons = <span style="color:#d33;font-size:13px"&gt;Order Rejected&lt;/span>;
+buttons = &lt;span style="color:#d33;font-size:13px"&gt; Order Rejected &lt;/span>;
 }
 
 const itemsHTML = (order.order_items || []).length
-? order.order_items.map(item => <div&gt;• ${escapeHTML(item.product_name)} x ${escapeHTML(item.quantity)}&lt;/div>).join("")
+? order.order_items.map(item => &lt;div&gt; • ${escapeHTML(item.product_name)} x ${escapeHTML(item.quantity)} &lt;/div&gt;).join("")
 : "<div>Order items unavailable</div>";
 
 const card = document.createElement("div");
 card.className = "order-card";
-card.innerHTML = &lt;div class="order-top"&gt; &lt;span class="order-id"&gt;#${escapeHTML(order.order_number ?? order.id)}</span>
-<span class="status ${statusClass}"&gt;${escapeHTML(order.status).toUpperCase()}</span>
+
+card.innerHTML = &lt;div class="order-top"&gt; &lt;span class="order-id"&gt; #${escapeHTML(order.order_number ?? order.id)}
+</span>
+
+<span class="status ${statusClass}"&gt; ${escapeHTML(order.status).toUpperCase()}
+</span>
 </div>
+
 <div class="order-info">
 ${escapeHTML(formatTime(order.created_at))}&lt;br&gt; Customer: ${escapeHTML(order.customer_name || "Customer")}<br>
 Phone: ${escapeHTML(order.customer_phone || "Not provided")}&lt;br&gt; Address: ${escapeHTML(order.delivery_address || "Not provided")}<br>
 Online Order
 </div>
-<div class="items">${itemsHTML}&lt;/div&gt; &lt;div class="total"&gt;₹${Number(order.total_amount || 0).toFixed(2)}</div>
+
+<div class="items">`${itemsHTML}</div>
+
+<div class="total">
+₹$`{Number(order.total_amount || 0).toFixed(2)}
+</div>
+
 <div class="actions">${buttons}&lt;/div>;
+
 orderList.appendChild(card);
 });
 
@@ -831,17 +996,29 @@ async function updateOrder(id, status) {
 const confirmed = status === "Rejected"
 ? confirm("Are you sure you want to reject this order?")
 : true;
+
 if (!confirmed) return;
 
 clearNotice();
-const buttons = orderList.querySelectorAll(button[data-id="${CSS.escape(String(id))}"]`);
+
+const buttons = orderList.querySelectorAll(
+button[data-id="${CSS.escape(String(id))}"]`
+);
+
 buttons.forEach(button => button.disabled = true);
 
 try {
-const { error } = await supabase.from("orders").update({ status }).eq("id", id);
+const { error } = await supabase
+.from("orders")
+.update({ status })
+.eq("id", id);
+
 if (error) throw error;
+
 showNotice("Order status updated successfully.", "success");
+
 await loadOrders();
+
 } catch (error) {
 showNotice("Status update failed: " + error.message);
 await loadOrders();
@@ -850,18 +1027,29 @@ await loadOrders();
 
 orderList.addEventListener("click", event => {
 const button = event.target.closest("button[data-id]");
+
 if (!button) return;
+
 const id = button.dataset.id;
 const status = button.dataset.status;
-if (id && status) updateOrder(id, status);
+
+if (id && status) {
+updateOrder(id, status);
+}
 });
 
 /* ORDER STATISTICS */
 function updateStats() {
 document.getElementById("totalOrders").innerText = orders.length;
-document.getElementById("newOrders").innerText = orders.filter(o => o.status === "New").length;
-document.getElementById("preparingOrders").innerText = orders.filter(o => o.status === "Preparing").length;
-document.getElementById("completedOrders").innerText = orders.filter(o => o.status === "Picked Up").length;
+
+document.getElementById("newOrders").innerText =
+orders.filter(o => o.status === "New").length;
+
+document.getElementById("preparingOrders").innerText =
+orders.filter(o => o.status === "Preparing").length;
+
+document.getElementById("completedOrders").innerText =
+orders.filter(o => o.status === "Picked Up").length;
 }
 
 /* ============================
@@ -870,14 +1058,23 @@ MENU MANAGEMENT
 
 /* LOAD MENU CATEGORIES AND ITEMS */
 async function loadMenuData() {
-menuGrid.innerHTML = <div class="menu-loading"&gt;Loading menu items...&lt;/div>;
+menuGrid.innerHTML = &lt;div class="menu-loading"&gt;Loading menu items...&lt;/div>;
+
 menuSummary.textContent = "Loading menu...";
 
 try {
 const [categoryResult, itemResult] = await Promise.all([
-supabase.from("menu_categories").select("").order("sort_order", { ascending: true }).order("name"),
-supabase.from("menu_items").select(", menu_categories(name)").order("created_at", { ascending: false })
- ]);
+supabase
+.from("menu_categories")
+.select("*")
+.order("sort_order", { ascending: true })
+.order("name"),
+
+supabase
+.from("menu_items")
+.select("*, menu_categories(name)")
+.order("created_at", { ascending: false })
+]);
 
 if (categoryResult.error) throw categoryResult.error;
 if (itemResult.error) throw itemResult.error;
@@ -889,9 +1086,15 @@ menuLoaded = true;
 renderCategoryOptions();
 renderCategoryStrip();
 renderMenuItems();
+
 } catch (error) {
 menuLoaded = false;
-menuGrid.innerHTML = <div class="menu-loading"&gt;Unable to load menu:${escapeHTML(error.message)}<br><br>Check that the menu SQL was run in Supabase.</div>`;
+
+menuGrid.innerHTML = &lt;div class="menu-loading"&gt; Unable to load menu:${escapeHTML(error.message)}
+<br><br>
+Check that the menu SQL was run in Supabase.
+</div>`;
+
 menuSummary.textContent = "Menu could not be loaded.";
 }
 }
@@ -899,13 +1102,19 @@ menuSummary.textContent = "Menu could not be loaded.";
 /* CATEGORY DROPDOWN */
 function renderCategoryOptions(selectedId = "") {
 const select = document.getElementById("menuItemCategory");
+
 select.innerHTML = <option value=""&gt;Select Category&lt;/option>;
 
 menuCategories.forEach(category => {
 const option = document.createElement("option");
+
 option.value = category.id;
 option.textContent = category.name;
-if (String(category.id) === String(selectedId)) option.selected = true;
+
+if (String(category.id) === String(selectedId)) {
+option.selected = true;
+}
+
 select.appendChild(option);
 });
 }
@@ -915,26 +1124,42 @@ function renderCategoryStrip() {
 categoryStrip.innerHTML = "";
 
 const allButton = document.createElement("button");
+
 allButton.type = "button";
-allButton.className = "category-chip" + (selectedMenuCategory === "all" ? " active" : "");
+allButton.className =
+"category-chip" +
+(selectedMenuCategory === "all" ? " active" : "");
+
 allButton.dataset.category = "all";
 allButton.textContent = "All Items";
+
 categoryStrip.appendChild(allButton);
 
 menuCategories.forEach(category => {
 const button = document.createElement("button");
+
 button.type = "button";
-button.className = "category-chip" + (String(selectedMenuCategory) === String(category.id) ? " active" : "");
+
+button.className =
+"category-chip" +
+(String(selectedMenuCategory) === String(category.id)
+? " active"
+: "");
+
 button.dataset.category = category.id;
 button.textContent = category.name;
+
 categoryStrip.appendChild(button);
 });
 }
 
 categoryStrip.addEventListener("click", event => {
 const button = event.target.closest("button[data-category]");
+
 if (!button) return;
+
 selectedMenuCategory = button.dataset.category;
+
 renderCategoryStrip();
 renderMenuItems();
 });
@@ -945,10 +1170,12 @@ const query = menuSearch.value.trim().toLowerCase();
 const typeFilter = menuTypeFilter.value;
 
 const filtered = menuItems.filter(item => {
-const matchesCategory = selectedMenuCategory === "all" ||
+const matchesCategory =
+selectedMenuCategory === "all" ||
 String(item.category_id) === String(selectedMenuCategory);
 
-const matchesType = typeFilter === "All" || item.item_type === typeFilter;
+const matchesType =
+typeFilter === "All" || item.item_type === typeFilter;
 
 const matchesSearch =
 String(item.name || "").toLowerCase().includes(query) ||
@@ -958,44 +1185,94 @@ String(item.menu_categories?.name || "").toLowerCase().includes(query);
 return matchesCategory && matchesType && matchesSearch;
 });
 
-const availableCount = menuItems.filter(item => item.is_available).length;
-menuSummary.textContent = ${menuItems.length} food item(s) • ${availableCount} available;
+const availableCount =
+menuItems.filter(item => item.is_available).length;
+
+menuSummary.textContent =
+${menuItems.length} food item(s) • ${availableCount} available;
 
 menuGrid.innerHTML = "";
 
 if (!filtered.length) {
-menuGrid.innerHTML = <div class="empty"&gt;&lt;h2&gt;No Menu Items Found&lt;/h2&gt;&lt;p&gt;Add a food item or change your filters.&lt;/p&gt;&lt;/div>;
+menuGrid.innerHTML = &lt;div class="empty"&gt; &lt;h2&gt;No Menu Items Found&lt;/h2&gt; &lt;p&gt;Add a food item or change your filters.&lt;/p&gt; &lt;/div>;
+
 return;
 }
 
 filtered.forEach(item => {
 const card = document.createElement("article");
+
 card.className = "menu-card";
 
 const imageHTML = item.image_url
-? <img class="menu-image" src="${escapeHTML(item.image_url)}" alt="${escapeHTML(item.name)}" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'"&gt; &lt;div class="menu-image-placeholder" style="display:none"&gt;🍽️&lt;/div>
-: <div class="menu-image-placeholder"&gt;🍽️&lt;/div>;
+? &lt;img class="menu-image" src="${escapeHTML(item.image_url)}"
+alt="`${escapeHTML(item.name)}"
+onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">
 
-const typeClass = item.item_type === "Non-Veg" ? "nonveg" : "veg";
-const availabilityClass = item.is_available ? "available" : "unavailable";
-const availabilityText = item.is_available ? "AVAILABLE" : "UNAVAILABLE";
+<div class="menu-image-placeholder" style="display:none">
+🍽️
+</div>
+:
+<div class="menu-image-placeholder">🍽️</div>
+`;
+
+const typeClass =
+item.item_type === "Non-Veg" ? "nonveg" : "veg";
+
+const availabilityClass =
+item.is_available ? "available" : "unavailable";
+
+const availabilityText =
+item.is_available ? "AVAILABLE" : "UNAVAILABLE";
 
 card.innerHTML = ${imageHTML}
+
 <div class="menu-card-content">
 <div class="menu-card-top">
 <div>
-<div class="menu-item-name">${escapeHTML(item.name)}&lt;/div&gt; &lt;div class="food-type ${typeClass}">
-<span class="food-type-dot"></span>${escapeHTML(item.item_type || "Veg")} &lt;/div&gt; &lt;/div&gt; &lt;/div&gt; &lt;div class="menu-price"&gt;₹${Number(item.price || 0).toFixed(2)}</div>
-<div class="menu-description">${escapeHTML(item.description || "No description added.")}&lt;/div&gt; &lt;div class="menu-description"&gt;Category: ${escapeHTML(item.menu_categories?.name || "Uncategorized")}</div>
+<div class="menu-item-name">
+`${escapeHTML(item.name)}
+</div>
+
+<div class="food-type {escapeHTML(item.item_type || "Veg")}
+</div>
+</div>
+</div>
+
+<div class="menu-price">
+₹$`{Number(item.price || 0).toFixed(2)}
+</div>
+
+<div class="menu-description">
+`${escapeHTML(item.description || "No description added.")}
+</div>
+
+<div class="menu-description">
+Category: $`{escapeHTML(item.menu_categories?.name || "Uncategorized")}
+</div>
+
 <div class="menu-card-footer">
-<span class="availability-pill ${availabilityClass}"&gt;${availabilityText}</span>
+<span class="availability-pill ${availabilityClass}"&gt; ${availabilityText}
+</span>
+
 <div class="menu-actions">
-<button class="small-action" data-menu-action="toggle" data-id="${item.id}"&gt; ${item.is_available ? "Mark Unavailable" : "Mark Available"}
+<button class="small-action"
+data-menu-action="toggle"
+data-id="${escapeHTML(item.id)}"&gt; ${item.is_available
+? "Mark Unavailable"
+: "Mark Available"}
 </button>
-<button class="small-action edit" data-menu-action="edit" data-id="${item.id}"&gt;Edit&lt;/button&gt; &lt;button class="small-action delete" data-menu-action="delete" data-id="${item.id}">Delete</button>
-</div>
-</div>
-</div>`;
+
+<button class="small-action edit"
+data-menu-action="edit"
+data-id="`${escapeHTML(item.id)}">
+Edit
+</button>
+
+<button class="small-action delete"
+data-menu-action="delete"
+data-id="${escapeHTML(item.id)}"&gt; Delete &lt;/button&gt; &lt;/div&gt; &lt;/div&gt; &lt;/div>;
+
 menuGrid.appendChild(card);
 });
 }
@@ -1003,20 +1280,40 @@ menuGrid.appendChild(card);
 /* OPEN MENU FORM */
 function openMenuModal(item = null) {
 clearMenuNotice();
+
 document.getElementById("menuModalError").style.display = "none";
+
 menuItemForm.reset();
 
-document.getElementById("menuModalTitle").textContent = item ? "Edit Food Item" : "Add Food Item";
-document.getElementById("saveMenuItemButton").textContent = item ? "Update Food Item" : "Save Food Item";
-document.getElementById("menuItemId").value = item ? item.id : "";
-document.getElementById("menuItemName").value = item?.name || "";
-document.getElementById("menuItemPrice").value = item?.price ?? "";
-document.getElementById("menuItemType").value = item?.item_type || "Veg";
-document.getElementById("menuItemDescription").value = item?.description || "";
-document.getElementById("menuItemImage").value = item?.image_url || "";
-document.getElementById("menuItemAvailability").value = String(item ? item.is_available : true);
+document.getElementById("menuModalTitle").textContent =
+item ? "Edit Food Item" : "Add Food Item";
+
+document.getElementById("saveMenuItemButton").textContent =
+item ? "Update Food Item" : "Save Food Item";
+
+document.getElementById("menuItemId").value =
+item ? item.id : "";
+
+document.getElementById("menuItemName").value =
+item?.name || "";
+
+document.getElementById("menuItemPrice").value =
+item?.price ?? "";
+
+document.getElementById("menuItemType").value =
+item?.item_type || "Veg";
+
+document.getElementById("menuItemDescription").value =
+item?.description || "";
+
+document.getElementById("menuItemImage").value =
+item?.image_url || "";
+
+document.getElementById("menuItemAvailability").value =
+String(item ? item.is_available : true);
 
 renderCategoryOptions(item?.category_id || "");
+
 menuModalBackdrop.classList.add("show");
 }
 
@@ -1026,25 +1323,43 @@ menuModalBackdrop.classList.remove("show");
 
 document.getElementById("addMenuItemButton").addEventListener("click", () => {
 if (!menuCategories.length) {
-showMenuNotice("पहले Add Category से कम-से-कम एक category बनाएँ।", "error");
+showMenuNotice(
+"पहले Add Category से कम-से-कम एक category बनाएँ।",
+"error"
+);
+
 return;
 }
+
 openMenuModal();
 });
 
-document.getElementById("closeMenuModal").addEventListener("click", closeMenuModal);
-document.getElementById("cancelMenuModal").addEventListener("click", closeMenuModal);
+document.getElementById("closeMenuModal").addEventListener(
+"click",
+closeMenuModal
+);
+
+document.getElementById("cancelMenuModal").addEventListener(
+"click",
+closeMenuModal
+);
 
 menuModalBackdrop.addEventListener("click", event => {
-if (event.target === menuModalBackdrop) closeMenuModal();
+if (event.target === menuModalBackdrop) {
+closeMenuModal();
+}
 });
 
 /* ADD CATEGORY */
-document.getElementById("addCategoryButton").addEventListener("click", async () => {
+document.getElementById("addCategoryButton").addEventListener(
+"click",
+async () => {
 const categoryName = prompt("Enter new food category name:");
+
 if (categoryName === null) return;
 
 const name = categoryName.trim();
+
 if (!name) {
 showMenuNotice("Category name cannot be empty.", "error");
 return;
@@ -1058,15 +1373,22 @@ const { error } = await supabase
 if (error) throw error;
 
 showMenuNotice("Category added successfully.", "success");
+
 await loadMenuData();
+
 } catch (error) {
-showMenuNotice("Unable to add category: " + error.message, "error");
+showMenuNotice(
+"Unable to add category: " + error.message,
+"error"
+);
 }
-});
+}
+);
 
 /* SAVE OR UPDATE MENU ITEM */
 menuItemForm.addEventListener("submit", async event => {
 event.preventDefault();
+
 if (menuSaving) return;
 
 const id = document.getElementById("menuItemId").value;
@@ -1074,15 +1396,23 @@ const name = document.getElementById("menuItemName").value.trim();
 const categoryId = document.getElementById("menuItemCategory").value;
 const price = Number(document.getElementById("menuItemPrice").value);
 const itemType = document.getElementById("menuItemType").value;
-const description = document.getElementById("menuItemDescription").value.trim();
-const imageUrl = document.getElementById("menuItemImage").value.trim();
-const isAvailable = document.getElementById("menuItemAvailability").value === "true";
+const description =
+document.getElementById("menuItemDescription").value.trim();
+
+const imageUrl =
+document.getElementById("menuItemImage").value.trim();
+
+const isAvailable =
+document.getElementById("menuItemAvailability").value === "true";
 
 const errorBox = document.getElementById("menuModalError");
+
 errorBox.style.display = "none";
 
 if (!name || !categoryId || !Number.isFinite(price) || price < 0) {
-errorBox.textContent = "Please enter a valid item name, category and price.";
+errorBox.textContent =
+"Please enter a valid item name, category and price.";
+
 errorBox.style.display = "block";
 return;
 }
@@ -1090,9 +1420,15 @@ return;
 if (imageUrl) {
 try {
 const parsedUrl = new URL(imageUrl);
-if (!["http:", "https:"].includes(parsedUrl.protocol)) throw new Error();
+
+if (!["http:", "https:"].includes(parsedUrl.protocol)) {
+throw new Error();
+}
+
 } catch {
-errorBox.textContent = "Please enter a valid image URL starting with http:// or https://";
+errorBox.textContent =
+"Please enter a valid image URL starting with http:// or https://";
+
 errorBox.style.display = "block";
 return;
 }
@@ -1109,7 +1445,9 @@ is_available: isAvailable,
 updated_at: new Date().toISOString()
 };
 
-const saveButton = document.getElementById("saveMenuItemButton");
+const saveButton =
+document.getElementById("saveMenuItemButton");
+
 menuSaving = true;
 saveButton.disabled = true;
 saveButton.textContent = "Saving...";
@@ -1118,34 +1456,56 @@ try {
 let result;
 
 if (id) {
-result = await supabase.from("menu_items").update(payload).eq("id", id);
+result = await supabase
+.from("menu_items")
+.update(payload)
+.eq("id", id);
+
 } else {
-result = await supabase.from("menu_items").insert(payload);
+result = await supabase
+.from("menu_items")
+.insert(payload);
 }
 
 if (result.error) throw result.error;
 
 closeMenuModal();
-showMenuNotice(id ? "Food item updated successfully." : "Food item added successfully.", "success");
+
+showMenuNotice(
+id
+? "Food item updated successfully."
+: "Food item added successfully.",
+"success"
+);
+
 await loadMenuData();
+
 } catch (error) {
 errorBox.textContent = "Save failed: " + error.message;
 errorBox.style.display = "block";
+
 } finally {
 menuSaving = false;
 saveButton.disabled = false;
-saveButton.textContent = id ? "Update Food Item" : "Save Food Item";
+
+saveButton.textContent =
+id ? "Update Food Item" : "Save Food Item";
 }
 });
 
 /* MENU CARD ACTIONS */
 menuGrid.addEventListener("click", async event => {
 const button = event.target.closest("button[data-menu-action]");
+
 if (!button) return;
 
 const id = button.dataset.id;
 const action = button.dataset.menuAction;
-const item = menuItems.find(entry => String(entry.id) === String(id));
+
+const item = menuItems.find(
+entry => String(entry.id) === String(id)
+);
+
 if (!item) return;
 
 if (action === "edit") {
@@ -1154,24 +1514,41 @@ return;
 }
 
 if (action === "delete") {
-const confirmed = confirm(Delete "${item.name}" from your menu? This cannot be undone.`);
+const confirmed = confirm(
+Delete "${item.name}" from your menu? This cannot be undone.`
+);
+
 if (!confirmed) return;
 
 button.disabled = true;
+
 try {
-const { error } = await supabase.from("menu_items").delete().eq("id", id);
+const { error } = await supabase
+.from("menu_items")
+.delete()
+.eq("id", id);
+
 if (error) throw error;
+
 showMenuNotice("Food item deleted successfully.", "success");
+
 await loadMenuData();
+
 } catch (error) {
-showMenuNotice("Delete failed: " + error.message, "error");
+showMenuNotice(
+"Delete failed: " + error.message,
+"error"
+);
+
 button.disabled = false;
 }
+
 return;
 }
 
 if (action === "toggle") {
 button.disabled = true;
+
 try {
 const { error } = await supabase
 .from("menu_items")
@@ -1182,10 +1559,22 @@ updated_at: new Date().toISOString()
 .eq("id", id);
 
 if (error) throw error;
-showMenuNotice(item.is_available ? "Item marked unavailable." : "Item marked available.", "success");
+
+showMenuNotice(
+item.is_available
+? "Item marked unavailable."
+: "Item marked available.",
+"success"
+);
+
 await loadMenuData();
+
 } catch (error) {
-showMenuNotice("Availability update failed: " + error.message, "error");
+showMenuNotice(
+"Availability update failed: " + error.message,
+"error"
+);
+
 button.disabled = false;
 }
 }
@@ -1200,6 +1589,7 @@ document.querySelectorAll(".nav-item[data-page]").forEach(item => {
 item.addEventListener("click", async () => {
 const targetId = item.dataset.page;
 const target = document.getElementById(targetId);
+
 if (!target) return;
 
 document.querySelectorAll(".page-section").forEach(section => {
@@ -1223,10 +1613,17 @@ await loadMenuData();
 /* ORDER TABS */
 document.querySelectorAll(".tab").forEach(tab => {
 tab.addEventListener("click", () => {
-document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+document.querySelectorAll(".tab").forEach(t => {
+t.classList.remove("active");
+});
+
 tab.classList.add("active");
+
 currentTab = tab.dataset.tab;
-document.getElementById("sectionTitle").innerText = currentTab + " Orders";
+
+document.getElementById("sectionTitle").innerText =
+currentTab + " Orders";
+
 renderOrders();
 });
 });
@@ -1235,25 +1632,39 @@ renderOrders();
 search.addEventListener("input", renderOrders);
 
 /* SESSION CHECK */
-const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+const {
+data: { session },
+error: sessionError
+} = await supabase.auth.getSession();
 
 if (sessionError) {
 loginConnection.textContent = "Unable to check login session.";
+
 } else if (session?.user) {
 await startDashboard(session.user);
+
 } else {
 loginScreen.style.display = "flex";
 loginConnection.textContent = "Supabase connected. Please login.";
 }
 
-/* AUTH STATE */
+/* AUTH STATE - UPDATED */
 supabase.auth.onAuthStateChange((event, session) => {
+
 if (event === "SIGNED_IN" && session?.user) {
+/*
+* Run dashboard startup outside the auth callback.
+* This avoids calling more Supabase queries while
+* the auth state callback is being processed.
+*/
+setTimeout(() => {
 startDashboard(session.user);
+}, 0);
 }
 
 if (event === "SIGNED_OUT") {
 dashboardUserId = null;
+
 orders = [];
 menuItems = [];
 menuCategories = [];
@@ -1266,19 +1677,33 @@ supabase.removeChannel(realtimeChannel);
 realtimeChannel = null;
 }
 
-orderList.innerHTML = <div class="empty"&gt;&lt;h2&gt;Please Login&lt;/h2&gt;&lt;/div>;
-menuGrid.innerHTML = <div class="menu-loading"&gt;Please login to manage your menu.&lt;/div>;
+orderList.innerHTML = &lt;div class="empty"&gt; &lt;h2&gt;Please Login&lt;/h2&gt; &lt;/div>;
+
+menuGrid.innerHTML = &lt;div class="menu-loading"&gt; Please login to manage your menu. &lt;/div>;
 
 restaurantStatusButton.disabled = true;
 restaurantStatusText.textContent = "OFFLINE";
+
 restaurantStatusButton.classList.remove("is-online");
 restaurantStatusButton.classList.add("is-offline");
 
+restaurantStatusDescription.textContent =
+"Please login to check restaurant status.";
+
+restaurantStatusError.style.display = "none";
+restaurantStatusError.textContent = "";
+
 logoutButton.style.display = "none";
+
 loginScreen.style.display = "flex";
-loginConnection.textContent = "Please login to continue.";
+
+loginConnection.textContent =
+"Please login to continue.";
+
+hideLoginNotice();
 }
 });
 </script>
+
 </body>
 </html>
